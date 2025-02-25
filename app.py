@@ -319,13 +319,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Add the save button
         self.save_button.clicked.connect(self.save_csv)
 
-        menubar = self.menuBar()
-        file_menu = menubar.addMenu('File')
-
-        save_action = QtGui.QAction('Save', self)
-        save_action.triggered.connect(self.save_csv)
-        file_menu.addAction(save_action)
-
         self.right_layout.addWidget(self.save_button)
         self.main_layout.addLayout(self.right_layout)
 
@@ -342,8 +335,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.addLegend()
         self.plot_graph.showGrid(x=True, y=True)
         self.plot_graph.setYRange(20, 40)
-        self.time = list(range(10))
-        self.temperatures = {channel: [randint(20, 40) for _ in range(10)] for channel in CHANNELS}
+        self.time = []
+        self.temperatures = {channel: [] for channel in CHANNELS}
         
         # Add a timer to simulate new temperature measurements
         self.timer = QtCore.QTimer()
@@ -378,7 +371,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.timer.setInterval(self.sample_rate * 1000)
         
-        self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S")}.csv'
+        self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
         df = pd.DataFrame(columns=['Datetime', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values(), 'Cycle No.'])
         df.to_csv(self.test_df, index=False)
 
@@ -405,8 +398,8 @@ class MainWindow(QtWidgets.QMainWindow):
         Enable the sidebar when the test stops
         """
         self.timer.stop()
-        self.time = list(range(10))
-        self.temperatures = {channel: [randint(20, 40) for _ in range(10)] for channel in CHANNELS}
+        self.time = []
+        self.temperatures = {channel: [] for channel in CHANNELS}
 
         self.status_label.setStyleSheet(f"""
             font-size: 26px;
@@ -430,7 +423,7 @@ class MainWindow(QtWidgets.QMainWindow):
         row['Voltage (V)'] = self.voltage_input
         row['Cycle No.'] = int(self.cycle_no.value_label.text())
 
-        self.time.append(self.time[-1] + 1)
+        self.time.append(self.time[-1] + self.sample_rate)
         # self.temperature = self.temperature[1:]
         for channel in self.channels_in_use:
             self.temperatures[channel].append(randint(20, 40))
@@ -466,14 +459,11 @@ class MainWindow(QtWidgets.QMainWindow):
         return selected_channels
 
     def save_csv(self):
-
-        # TODO: Connect to the CSV generation and saving
-        text = 'HAHAHA'
-        if not text:
-            QtWidgets.QMessageBox.warning(self, 'Warning', 'Text field is empty')
+        if not self.test_df:
+            QtWidgets.QMessageBox.warning(self, 'Warning', 'No measurements to save')
             return
 
-        fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '', options=QtWidgets.QFileDialog.Option.ShowDirsOnly)
+        fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '', 'CSV files (*.csv)', options=QtWidgets.QFileDialog.Option.ShowDirsOnly)
         if fileName:
             file_path = Path(fileName)
             if file_path.exists():
@@ -483,8 +473,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             try:
                 shutil.copy(self.test_df, fileName)
-                # with open(fileName, 'w') as file:
-                #     file.write(text)
             except Exception as e:
                 QtWidgets.QMessageBox.critical(self, 'Error', f'Could not save file: {e}')
     
