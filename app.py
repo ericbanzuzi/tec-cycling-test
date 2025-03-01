@@ -377,7 +377,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.cycle_no.update_value(0)
 
-        # TODO: Connect to the power supply and start the test and see how 
+        # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
 
         self.timer.start()
         
@@ -423,7 +423,10 @@ class MainWindow(QtWidgets.QMainWindow):
         row['Voltage (V)'] = self.voltage_input
         row['Cycle No.'] = int(self.cycle_no.value_label.text())
 
-        self.time.append(self.time[-1] + self.sample_rate)
+        if len(self.time) > 0:
+            self.time.append(self.time[-1] + self.sample_rate)
+        else:
+            self.time.append(self.sample_rate)
         # self.temperature = self.temperature[1:]
         for channel in self.channels_in_use:
             self.temperatures[channel].append(randint(20, 40))
