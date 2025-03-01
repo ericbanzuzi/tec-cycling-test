@@ -342,6 +342,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plot)
 
+        self.power_timer = QtCore.QTimer()
+        self.power_timer.timeout.connect(self.update_power_cycle)
+        self.power_counter = 0
+        self.power_is_on = False
+
         # Button connections
         self.start_button.clicked.connect(self.start_test)
         self.stop_button.clicked.connect(self.stop_test)
@@ -370,6 +375,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not success:
             return
         self.timer.setInterval(self.sample_rate * 1000)
+        self.power_timer.setInterval(1000)
         
         self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
         df = pd.DataFrame(columns=['Datetime', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values(), 'Cycle No.'])
@@ -378,7 +384,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cycle_no.update_value(0)
 
         # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
+        self.power_is_on = True
 
+        self.power_timer.start()
         self.timer.start()
         
         self.status_label.setStyleSheet(f"""
@@ -398,6 +406,8 @@ class MainWindow(QtWidgets.QMainWindow):
         Enable the sidebar when the test stops
         """
         self.timer.stop()
+        self.power_timer.stop()
+        self.power_counter = 0
         self.time = []
         self.temperatures = {channel: [] for channel in CHANNELS}
 
@@ -414,7 +424,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.save_button.setEnabled(True)
     
     def update_plot(self):
-        # self.time = self.time[1:]
+        """
+        Update the plot with new data
+        """
         # Append the new data to the existing CSV file
         row = {}
         row['Datetime'] = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -427,7 +439,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.time.append(self.time[-1] + self.sample_rate)
         else:
             self.time.append(self.sample_rate)
-        # self.temperature = self.temperature[1:]
+        
         for channel in self.channels_in_use:
             self.temperatures[channel].append(randint(20, 40))
             row[f'Temp of {self.channel_names_in_use[channel]}'] = self.temperatures[channel][-1]
@@ -438,7 +450,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_visible_channels()
     
     def update_visible_channels(self):
-        """Updates the plot based on selected channels."""
+        """
+        Updates the plot based on selected channels
+        """
         selected_channels = self.get_visible_channels()
 
         # Clear the plot
@@ -449,6 +463,26 @@ class MainWindow(QtWidgets.QMainWindow):
             pen = self.pens[channel]
             temp_data = self.temperatures[channel]
             self.plot_graph.plot(self.time, temp_data, pen=pen)
+    
+    def update_power_cycle(self):
+        """
+        Update the power cycle
+        """
+        if self.power_is_on:
+            if self.power_counter >= self.power_on:
+                self.power_is_on = False
+                self.power_counter = 0
+            else:
+                self.power_counter += 1
+        else:
+            if self.power_counter >= self.power_off:
+                self.power_is_on = True
+                self.power_counter = 0
+                self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
+                print(self.time)
+            else:
+                self.power_counter += 1
+
     
     def get_visible_channels(self):
         """
