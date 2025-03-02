@@ -8,7 +8,7 @@ import pyqtgraph as pg
 from pathlib import Path
 from random import randint
 import seaborn as sns
-
+from hardware import Hardware
 
 palette = sns.color_palette()
 COLORS = [mcolors.to_hex(color) for color in palette]
@@ -237,7 +237,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph = pg.PlotWidget()
         self.plot_graph.setFixedSize(800, 600)
 
-
         # The layout of the interface
         self.main_widget = QtWidgets.QWidget()
         self.setCentralWidget(self.main_widget)   
@@ -315,7 +314,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.right_layout.addWidget(self.display_selector)
 
-        
         # Add the save button
         self.save_button.clicked.connect(self.save_csv)
 
@@ -367,6 +365,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if not os.path.exists(CSV_PATH):
             os.makedirs(CSV_PATH)
 
+        # Hardware
+        # self.hardware = Hardware()
+
     def start_test(self):
         """
         Disable the sidebar when the test starts
@@ -385,7 +386,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
         self.power_is_on = True
-
+        self.last_power_toggle = datetime.datetime.now()
         self.power_timer.start()
         self.timer.start()
         
@@ -468,22 +469,20 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Update the power cycle
         """
-        if self.power_is_on:
-            if self.power_counter >= self.power_on:
-                self.power_is_on = False
-                self.power_counter = 0
-            else:
-                self.power_counter += 1
-        else:
-            if self.power_counter >= self.power_off:
-                self.power_is_on = True
-                self.power_counter = 0
-                self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
-                print(self.time)
-            else:
-                self.power_counter += 1
+        now = datetime.datetime.now()
+        elapsed_time = (now - self.last_power_toggle).total_seconds()  # Calculate time difference
 
-    
+        if self.power_is_on and elapsed_time >= self.power_on:
+            self.power_is_on = False
+            self.last_power_toggle = now  # Update timestamp
+            # TODO: Change the power state of the power supply
+
+        elif not self.power_is_on and elapsed_time >= self.power_off:
+            self.power_is_on = True
+            self.last_power_toggle = now  # Update timestamp
+            self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
+            # TODO: Change the power state of the power supply
+
     def get_visible_channels(self):
         """
         Returns a list of selected channels
