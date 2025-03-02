@@ -393,7 +393,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status_label.setStyleSheet(f"""
             font-size: 26px;
             font-weight: bold;
-            background-color: orange;
+            background-color: red;
             color: white;
             padding: 10px;
         """)
