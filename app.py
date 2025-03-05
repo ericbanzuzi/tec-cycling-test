@@ -379,7 +379,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.power_timer.setInterval(1000)
         
         self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
-        df = pd.DataFrame(columns=['Datetime', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values(), 'Cycle No.'])
+        df = pd.DataFrame(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
         df.to_csv(self.test_df, index=False)
 
         self.cycle_no.update_value(0)
@@ -431,10 +431,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Append the new data to the existing CSV file
         row = {}
         row['Datetime'] = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        row['Cycle No.'] = int(self.cycle_no.value_label.text())
         row['Operator'] = self.operator
         row['Current I (A)'] = self.current_input
         row['Voltage (V)'] = self.voltage_input
-        row['Cycle No.'] = int(self.cycle_no.value_label.text())
 
         if len(self.time) > 0:
             self.time.append(self.time[-1] + self.sample_rate)
@@ -446,7 +446,7 @@ class MainWindow(QtWidgets.QMainWindow):
             row[f'Temp of {self.channel_names_in_use[channel]}'] = self.temperatures[channel][-1]
         
         new_df = pd.DataFrame([row])
-        new_df = new_df.reindex(columns=['Datetime', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values(), 'Cycle No.'])
+        new_df = new_df.reindex(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
         new_df.to_csv(self.test_df, mode='a', index=False, header=False)
         self.update_visible_channels()
     
