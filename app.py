@@ -384,6 +384,7 @@ class MainWindow(QtWidgets.QMainWindow):
         df.to_csv(self.test_df, index=False)
 
         self.cycle_no.update_value(0)
+        self.update_plot()
 
         # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
         self.power_is_on = True
@@ -440,7 +441,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(self.time) > 0:
             self.time.append(self.time[-1] + self.sample_rate)
         else:
-            self.time.append(self.sample_rate)
+            self.time.append(0)
         
         temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int)
         for i, channel in enumerate(self.channels_in_use):
@@ -569,7 +570,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.channels_in_use:
             QtWidgets.QMessageBox.warning(self, 'No Channels Selected', 'Select at least one channel to use')
             return False
-        self.channels_in_use2int = ", ".join(int(item.replace("ch", "")) for item in self.channels_in_use)
+        self.channels_in_use2int = [item.replace("ch", "") for item in self.channels_in_use]
+        print(self.channels_in_use2int)
 
         for channel in self.channels_in_use:
             if self.sidebar.channel_inputs_fields[channel].text():

@@ -52,16 +52,21 @@ class Hardware:
         self.keithley_dmm6500.write(':ROUT:SCAN:BUFF "scanbuffer"')
         self.keithley_dmm6500.write(':ROUT:SCAN:COUN:SCAN 1')
         self.keithley_dmm6500.write(':SENS:RES:RANG:AUTO ON')
+        self.keithley_dmm6500.write(f'ROUT:SCAN:CRE (@1:10)')  # ensure correct channels
     
-    def read_keithley_dmm6500_temperatures(self, channels, start=False):
-        if start:
-            self.keithley_dmm6500.write(f'ROUT:SCAN:CRE (@{", ".join(channels)})')
-        hardware.keithley_dmm6500.write('INIT')
-        hardware.keithley_dmm6500.write('*WAI')
-        hardware.keithley_dmm6500.write(':READ? "scanbuffer"')
-        hardware.keithley_dmm6500.write(f':TRAC:DATA? 1, {len(channels)}, "scanbuffer", READ')
+    def read_keithley_dmm6500_temperatures(self, channels, resistance=False):
+        self.keithley_dmm6500.write('TRAC:CLE "scanbuffer"')  # clear buffer
+        self.keithley_dmm6500.write('INIT')  # start scan
+        self.keithley_dmm6500.write('*WAI')  # wait  for scan to end
+        # self.keithley_dmm6500.write(':READ? "scanbuffer"')
+        self.keithley_dmm6500.write(f':TRAC:DATA? 1, 10, "scanbuffer", READ')  # read the data
+        
         data = self.keithley_dmm6500.read().strip('\n').split(',')
+        print(len(data), data)
+        if resistance:
+            return [float(data[int(channel)]) for channel in channels]
         return [self.res_to_temp(float(value)) for value in data]
+        # return [self.res_to_temp(float(data[int(channel) - 1])) for channel in channels]
     
     def res_to_temp(self, R):
         return 1 / (1.113e-3 + 2.43e-4*np.log(R) + 8.87e-8*(np.log(R)**3)) - 273.15
@@ -89,7 +94,7 @@ def list_available_instruments():
 if __name__=='__main__':
     # list_available_instruments()
     hardware = Hardware()
-    hardware.keithley_dmm6500.write('INIT')
+    """ hardware.keithley_dmm6500.write('INIT')
     hardware.keithley_dmm6500.write('*WAI')
     hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
     print(hardware.keithley_dmm6500.read())
@@ -100,7 +105,14 @@ if __name__=='__main__':
     hardware.keithley_dmm6500.write(':TRAC:DATA? 1, 10, "scanbuffer", READ')
     print(hardware.keithley_dmm6500.read())
     hardware.keithley_dmm6500.write(':SYST:ERR?')
-    print(hardware.keithley_dmm6500.read())
+    print(hardware.keithley_dmm6500.read()) """
 
+    import time
     print('TESTING METHOD')
-    print(hardware.read_keithley_dmm6500_temperatures([1, 3, 5]))
+    chans = ['1', '2', '3', '4', '5', '6']
+    print(hardware.read_keithley_dmm6500_temperatures(chans))
+    time.sleep(1)
+    print(hardware.read_keithley_dmm6500_temperatures(chans))
+    time.sleep(1)
+    print(hardware.read_keithley_dmm6500_temperatures(chans))
+    
