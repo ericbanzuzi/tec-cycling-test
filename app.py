@@ -321,6 +321,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.addLayout(self.right_layout)
 
         self.channels_in_use = []
+        self.channels_in_use2int = []
         self.channel_names_in_use = {channel: f'Temp of {channel.capitalize()}' for channel in CHANNELS}
 
         # Temperature vs time dynamic plot
@@ -366,7 +367,7 @@ class MainWindow(QtWidgets.QMainWindow):
             os.makedirs(CSV_PATH)
 
         # Hardware
-        # self.hardware = Hardware()
+        self.hardware = Hardware()
 
     def start_test(self):
         """
@@ -441,8 +442,9 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.time.append(self.sample_rate)
         
-        for channel in self.channels_in_use:
-            self.temperatures[channel].append(randint(20, 40))
+        temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int)
+        for i, channel in enumerate(self.channels_in_use):
+            self.temperatures[channel].append(temperature_readings[i])
             row[f'Temp of {self.channel_names_in_use[channel]}'] = self.temperatures[channel][-1]
         
         new_df = pd.DataFrame([row])
@@ -567,6 +569,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.channels_in_use:
             QtWidgets.QMessageBox.warning(self, 'No Channels Selected', 'Select at least one channel to use')
             return False
+        self.channels_in_use2int = ", ".join(int(item.replace("ch", "")) for item in self.channels_in_use)
 
         for channel in self.channels_in_use:
             if self.sidebar.channel_inputs_fields[channel].text():

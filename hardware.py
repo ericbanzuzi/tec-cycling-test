@@ -46,25 +46,22 @@ class Hardware:
     def setup_keithley_dmm6500(self):
         self.keithley_dmm6500.timeout = 30000
         self.keithley_dmm6500.write('*RST')
-        self.keithley_dmm6500.write('TRAC:CLE "defbuffer1"')
         self.keithley_dmm6500.write('TRAC:MAKE "scanbuffer", 20')
         self.keithley_dmm6500.write(':SENS:FUNC "RES", (@1:10)')
         self.keithley_dmm6500.write(':SENS:RES:NPLC 1, (@1:10)')
         self.keithley_dmm6500.write(':ROUT:SCAN:BUFF "scanbuffer"')
         self.keithley_dmm6500.write(':ROUT:SCAN:COUN:SCAN 1')
         self.keithley_dmm6500.write(':SENS:RES:RANG:AUTO ON')
-        self.keithley_dmm6500.write('ROUT:SCAN:CRE (@1:10)')
-        # self.keithley_dmm6500.write('ROUT:SCAN:CRE "(@101:110)"')
-        # self.keithley_dmm6500.write('ROUT:SCAN')
-        # self.keithley_dmm6500.write(':SENS:RES:RANG AUTO ON')
-        #self.keithley_dmm6500.write('AZER ON')
-        #self.keithley_dmm6500.write('INIT:CONT ON')
-        #self.keithley_dmm6500.write('ROUT:SCAN:START')
     
-    def read_keithley_dmm6500(self, channel):
-        self.keithley_dmm6500.write(f'ROUT:SCAN:CHAN {channel}')
-        self.keithley_dmm6500.write('MEAS:RES?')
-        return self.keithley_dmm6500.read().strip('\n')
+    def read_keithley_dmm6500_temperatures(self, channels, start=False):
+        if start:
+            self.keithley_dmm6500.write(f'ROUT:SCAN:CRE (@{", ".join(channels)})')
+        hardware.keithley_dmm6500.write('INIT')
+        hardware.keithley_dmm6500.write('*WAI')
+        hardware.keithley_dmm6500.write(':READ? "scanbuffer"')
+        hardware.keithley_dmm6500.write(f':TRAC:DATA? 1, {len(channels)}, "scanbuffer", READ')
+        data = self.keithley_dmm6500.read().strip('\n').split(',')
+        return [self.res_to_temp(float(value)) for value in data]
     
     def res_to_temp(self, R):
         return 1 / (1.113e-3 + 2.43e-4*np.log(R) + 8.87e-8*(np.log(R)**3)) - 273.15
@@ -105,45 +102,5 @@ if __name__=='__main__':
     hardware.keithley_dmm6500.write(':SYST:ERR?')
     print(hardware.keithley_dmm6500.read())
 
-    """ import libusb_package
-    import usb.core
-    import usb.backend.libusb1
-
-    libusb1_backend = usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
-    # -> calls usb.libloader.load_locate_library(
-    #                ('usb-1.0', 'libusb-1.0', 'usb'),
-    #                'cygusb-1.0.dll', 'Libusb 1',
-    #                win_cls=win_cls,
-    #                find_library=find_library, check_symbols=('libusb_init',))
-    #
-    # -> calls find_library(candidate) with candidate in ('usb-1.0', 'libusb-1.0', 'usb')
-    #   returns lib name or path (as appropriate for OS) if matching lib is found
-
-    # It would also be possible to pass the output of libusb_package.get_libsusb1_backend()
-    # to the backend parameter here. In fact, that function is simply a shorthand for the line
-    # above.
-    devices = usb.core.find(find_all=True, backend=libusb1_backend)
-    for device in devices:
-        print(f'Device: {hex(device.idVendor)}:{hex(device.idProduct)}') """
-
-    """ import libusb_package
-
-    for dev in libusb_package.find(find_all=True):
-        print(dev)
-
-    import usb.core
-    import usb.util
-    devices = usb.core.find(find_all=True)
-    for device in devices:
-        print(device) """
-    """ hardware = Hardware()
-    hardware.setup_keithley_dmm6500()
-    import time
-    for i in range(1, 10):
-        time.sleep(1)
-        print(hardware.read_keithley_dmm6500(i))
-    hardware.close()
-    hardware.keithley_dmm6500.write('FETCh?')
-    print(hardware.keithley_dmm6500.read())
-    print('Done')
-    hardware.close() """
+    print('TESTING METHOD')
+    print(hardware.read_keithley_dmm6500_temperatures([1, 3, 5]))
