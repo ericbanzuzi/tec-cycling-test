@@ -95,34 +95,16 @@ def list_available_instruments():
 if __name__=='__main__':
     # list_available_instruments()
     hardware = Hardware()
-    """ hardware.keithley_dmm6500.write('INIT')
-    hardware.keithley_dmm6500.write('*WAI')
-    hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
-    print(hardware.keithley_dmm6500.read())
-    print()
-    hardware.keithley_dmm6500.write(':READ? "scanbuffer"')
-    print(hardware.keithley_dmm6500.read())
-    print()
-    hardware.keithley_dmm6500.write(':TRAC:DATA? 1, 10, "scanbuffer", READ')
-    print(hardware.keithley_dmm6500.read())
-    hardware.keithley_dmm6500.write(':SYST:ERR?')
-    print(hardware.keithley_dmm6500.read()) """
     # hardware.keithley_dmm6500.write('*CLS')
     # print(hardware.keithley_dmm6500.read())
     """ import time
     print('TESTING METHOD')
     chans = ['1', '2', '3', '4', '5', '6']
-    #print(hardware.keithley_dmm6500.read(), 'LOLOLO')
     print(hardware.read_keithley_dmm6500_temperatures(chans))
-
-    #hardware.keithley_dmm6500.write('*OPC?')
-    # print(hardware.keithley_dmm6500.read(), 'LOLOLO')
-    time.sleep(5)
+    time.sleep(2.5)
     print(hardware.read_keithley_dmm6500_temperatures(chans))
-    #hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
-    #print(hardware.keithley_dmm6500.read())
-    time.sleep(5)
+    time.sleep(2.5)
     print(hardware.read_keithley_dmm6500_temperatures(chans))"""
-    #hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
-    #print(hardware.keithley_dmm6500.read())
+    # hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
+    # print(hardware.keithley_dmm6500.read())
     

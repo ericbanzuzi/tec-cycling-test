@@ -10,9 +10,9 @@ from random import randint
 import seaborn as sns
 from hardware import Hardware
 
-palette = sns.color_palette()
-COLORS = [mcolors.to_hex(color) for color in palette]
 
+PALETTE = sns.color_palette()
+COLORS = [mcolors.to_hex(color) for color in PALETTE]
 CHANNELS = [f"ch{i}" for i in range(1, 11)]
 PS_INFO_FIELDS = ['Current I (A)', 'Voltage (V)', 'Power On (sec)', 'Power Off (sec)', 'Sample Rate (sec)', 'Start Cycle', 'End Cycle']
 CSV_PATH = 'test-data'
@@ -220,7 +220,7 @@ class ParameterSidebar(QtWidgets.QWidget):
  
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, dummy_data=False):
         super().__init__()
         
         self.setWindowTitle('TEC Cycling Test')
@@ -271,8 +271,8 @@ class MainWindow(QtWidgets.QMainWindow):
         metric_layout = QtWidgets.QVBoxLayout()
         self.metric_group = QtWidgets.QGroupBox('Test Data')
         self.cycle_no = MetricBox('Cycle No.', 0, use_float=False)
-        self.current_value = MetricBox('Current I (A):', 3)
-        self.voltage_value = MetricBox("Voltage (V):", 34)
+        self.current_value = MetricBox('Current I (A):', 0)
+        self.voltage_value = MetricBox("Voltage (V):", 0)
         
         for metric in [self.cycle_no, self.current_value, self.voltage_value]:
             metric.setMaximumWidth(200)
@@ -343,7 +343,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.power_timer = QtCore.QTimer()
         self.power_timer.timeout.connect(self.update_power_cycle)
-        self.power_counter = 0
         self.power_is_on = False
 
         # Button connections
@@ -367,7 +366,8 @@ class MainWindow(QtWidgets.QMainWindow):
             os.makedirs(CSV_PATH)
 
         # Hardware
-        self.hardware = Hardware()
+        self.dummy_data = dummy_data
+        self.hardware = Hardware() if not dummy_data else None
 
     def start_test(self):
         """
@@ -385,8 +385,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.cycle_no.update_value(0)
         self.update_plot()
-
-        # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
+        if self.dummy_data:
+            pass
+        else:
+            # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
+            self.hardware.set_rigol_output('ON')
+            self.hardware.set_rigol_current(self.current_input)
+            self.hardware.set_rigol_voltage(self.voltage_input)
+        
         self.power_is_on = True
         self.last_power_toggle = datetime.datetime.now()
         self.power_timer.start()
@@ -410,18 +416,16 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         self.timer.stop()
         self.power_timer.stop()
-        self.power_counter = 0
         self.time = []
         self.temperatures = {channel: [] for channel in CHANNELS}
+        
+        if not self.dummy_data:
+            self.hardware.set_rigol_output('OFF')
+            self.hardware.set_rigol_current(0)
+            self.hardware.set_rigol_voltage(0)
 
-        self.status_label.setStyleSheet(f"""
-            font-size: 26px;
-            font-weight: bold;
-            background-color: green;
-            color: white;
-            padding: 10px;
-        """)
-        self.status_label.setText('TEST COMPLETE')
+        self.status_label.setStyleSheet("font-size: 26px; font-weight: bold;")
+        self.status_label.setText('TEST STOPPED')
 
         self.sidebar.set_enabled_state(True)
         self.save_button.setEnabled(True)
@@ -435,15 +439,15 @@ class MainWindow(QtWidgets.QMainWindow):
         row['Datetime'] = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
         row['Cycle No.'] = int(self.cycle_no.value_label.text())
         row['Operator'] = self.operator
-        row['Current I (A)'] = self.current_input
-        row['Voltage (V)'] = self.voltage_input
+        row['Current I (A)'] = self.hardware.read_rigol_current() if not self.dummy_data else self.current_input
+        row['Voltage (V)'] = self.hardware.read_rigol_voltage() if not self.dummy_data else self.voltage_input
 
         if len(self.time) > 0:
             self.time.append(self.time[-1] + self.sample_rate)
         else:
             self.time.append(0)
         
-        temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int)
+        temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int) if not self.dummy_data else [randint(20, 40) for _ in self.channels_in_use2int]
         for i, channel in enumerate(self.channels_in_use):
             self.temperatures[channel].append(temperature_readings[i])
             row[f'Temp of {self.channel_names_in_use[channel]}'] = self.temperatures[channel][-1]
@@ -478,14 +482,29 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.power_is_on and elapsed_time >= self.power_on:
             self.power_is_on = False
             self.last_power_toggle = now  # Update timestamp
-            # TODO: Change the power state of the power supply
+            # TODO: Change the power state of the power supply -- check if need to manually change the values
+            if not self.dummy_data:
+                self.hardware.set_rigol_output('OFF')
+                self.voltage_value.update_value(self.hardware.read_rigol_voltage())
+                self.current_value.update_value(self.hardware.read_rigol_current())
 
         elif not self.power_is_on and elapsed_time >= self.power_off:
             self.power_is_on = True
             self.last_power_toggle = now  # Update timestamp
             self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
             # TODO: Change the power state of the power supply
-
+            if not self.dummy_data:
+                self.hardware.set_rigol_output('ON')
+                self.voltage_value.update_value(self.hardware.read_rigol_voltage())
+                self.current_value.update_value(self.hardware.read_rigol_current())
+        
+        elif not self.dummy_data:
+            self.voltage_value.update_value(self.hardware.read_rigol_voltage())
+            self.current_value.update_value(self.hardware.read_rigol_current())
+        
+        if int(self.cycle_no.value_label.text()) >= self.end_cycle:
+            self.complete_test()
+        
     def get_visible_channels(self):
         """
         Returns a list of selected channels
@@ -498,6 +517,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return selected_channels
 
     def save_csv(self):
+        """
+        Saves the measurement csv to the desired location
+        """
         if not self.test_df:
             QtWidgets.QMessageBox.warning(self, 'Warning', 'No measurements to save')
             return
@@ -571,7 +593,6 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, 'No Channels Selected', 'Select at least one channel to use')
             return False
         self.channels_in_use2int = [item.replace("ch", "") for item in self.channels_in_use]
-        print(self.channels_in_use2int)
 
         for channel in self.channels_in_use:
             if self.sidebar.channel_inputs_fields[channel].text():
@@ -586,7 +607,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Finish the test and save the data to a CSV file
         """
+        self.update_plot()
+
         self.timer.stop()
+        self.power_timer.stop()
         self.status_label.setStyleSheet(f"""
             font-size: 26px;
             font-weight: bold;
@@ -595,10 +619,20 @@ class MainWindow(QtWidgets.QMainWindow):
             padding: 10px;
         """)
         self.status_label.setText('TEST COMPLETE')
+
+        if not self.dummy_data:
+            self.hardware.set_rigol_output('OFF')
+            self.hardware.set_rigol_current(0)
+            self.hardware.set_rigol_voltage(0)
+        
+        self.time = []
+        self.temperatures = {channel: [] for channel in CHANNELS}
         
 
     def center_window(self):
-        """Centers the main window on the screen"""
+        """
+        Centers the main window on the screen
+        """
         frame_geometry = self.frameGeometry()
         screen = QtWidgets.QApplication.primaryScreen()
         screen_center = screen.availableGeometry().center()
@@ -607,7 +641,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication([])
-    main = MainWindow()
+    main = MainWindow(dummy_data=True)
     main.show()
     main.center_window()
     app.exec()
