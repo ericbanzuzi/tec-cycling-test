@@ -36,7 +36,7 @@ class Hardware:
         return float(self.rigol_dp811a.read().strip('\n'))
 
     def setup_rigol_dp811a(self):
-        self.rigol_dp811a.timeout = 1000
+        self.rigol_dp811a.timeout = 10000
         self.rigol_dp811a.write('*RST')
         self.rigol_dp811a.write('SYST:REM')
         self.rigol_dp811a.write('OUTP OFF')
@@ -46,7 +46,7 @@ class Hardware:
     def setup_keithley_dmm6500(self):
         self.keithley_dmm6500.timeout = 30000
         self.keithley_dmm6500.write('*RST')
-        self.keithley_dmm6500.write('TRAC:MAKE "scanbuffer", 20')
+        self.keithley_dmm6500.write('TRAC:MAKE "scanbuffer", 100')
         self.keithley_dmm6500.write(':SENS:FUNC "RES", (@1:10)')
         self.keithley_dmm6500.write(':SENS:RES:NPLC 1, (@1:10)')
         self.keithley_dmm6500.write(':ROUT:SCAN:BUFF "scanbuffer"')
@@ -58,15 +58,16 @@ class Hardware:
         self.keithley_dmm6500.write('TRAC:CLE "scanbuffer"')  # clear buffer
         self.keithley_dmm6500.write('INIT')  # start scan
         self.keithley_dmm6500.write('*WAI')  # wait  for scan to end
+        
+        # self.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
+        # print(self.keithley_dmm6500.read())
         # self.keithley_dmm6500.write(':READ? "scanbuffer"')
         self.keithley_dmm6500.write(f':TRAC:DATA? 1, 10, "scanbuffer", READ')  # read the data
         
         data = self.keithley_dmm6500.read().strip('\n').split(',')
-        print(len(data), data)
         if resistance:
             return [float(data[int(channel)]) for channel in channels]
-        return [self.res_to_temp(float(value)) for value in data]
-        # return [self.res_to_temp(float(data[int(channel) - 1])) for channel in channels]
+        return [self.res_to_temp(float(data[int(channel) - 1])) for channel in channels]
     
     def res_to_temp(self, R):
         return 1 / (1.113e-3 + 2.43e-4*np.log(R) + 8.87e-8*(np.log(R)**3)) - 273.15
@@ -106,13 +107,22 @@ if __name__=='__main__':
     print(hardware.keithley_dmm6500.read())
     hardware.keithley_dmm6500.write(':SYST:ERR?')
     print(hardware.keithley_dmm6500.read()) """
-
-    import time
+    # hardware.keithley_dmm6500.write('*CLS')
+    # print(hardware.keithley_dmm6500.read())
+    """ import time
     print('TESTING METHOD')
     chans = ['1', '2', '3', '4', '5', '6']
+    #print(hardware.keithley_dmm6500.read(), 'LOLOLO')
     print(hardware.read_keithley_dmm6500_temperatures(chans))
-    time.sleep(1)
+
+    #hardware.keithley_dmm6500.write('*OPC?')
+    # print(hardware.keithley_dmm6500.read(), 'LOLOLO')
+    time.sleep(5)
     print(hardware.read_keithley_dmm6500_temperatures(chans))
-    time.sleep(1)
-    print(hardware.read_keithley_dmm6500_temperatures(chans))
+    #hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
+    #print(hardware.keithley_dmm6500.read())
+    time.sleep(5)
+    print(hardware.read_keithley_dmm6500_temperatures(chans))"""
+    #hardware.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
+    #print(hardware.keithley_dmm6500.read())
     
