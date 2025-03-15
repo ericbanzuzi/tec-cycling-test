@@ -58,16 +58,12 @@ class Hardware:
         self.keithley_dmm6500.write('TRAC:CLE "scanbuffer"')  # clear buffer
         self.keithley_dmm6500.write('INIT')  # start scan
         self.keithley_dmm6500.write('*WAI')  # wait  for scan to end
-        
-        # self.keithley_dmm6500.write(':ROUT:SCAN:STAT?')
-        # print(self.keithley_dmm6500.read())
-        # self.keithley_dmm6500.write(':READ? "scanbuffer"')
         self.keithley_dmm6500.write(f':TRAC:DATA? 1, 10, "scanbuffer", READ')  # read the data
         
         data = self.keithley_dmm6500.read().strip('\n').split(',')
         if resistance:
             return [float(data[int(channel)]) for channel in channels]
-        return [self.res_to_temp(float(data[int(channel) - 1])) for channel in channels]
+        return [float(self.res_to_temp(float(data[int(channel) - 1]))) for channel in channels]
     
     def res_to_temp(self, R):
         return 1 / (1.113e-3 + 2.43e-4*np.log(R) + 8.87e-8*(np.log(R)**3)) - 273.15
@@ -91,6 +87,7 @@ def list_available_instruments():
         print('  Resource name:', value.resource_name)
         print('  Resource alias:', value.alias)
         i += 1
+
 
 if __name__=='__main__':
     # list_available_instruments()

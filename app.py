@@ -9,6 +9,8 @@ from pathlib import Path
 from random import randint
 import seaborn as sns
 from hardware import Hardware
+import time
+import argparse
 
 
 PALETTE = sns.color_palette()
@@ -333,7 +335,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.setLabel("bottom", "Time (sec)", **styles)
         self.plot_graph.addLegend()
         self.plot_graph.showGrid(x=True, y=True)
-        self.plot_graph.setYRange(20, 40)
         self.time = []
         self.temperatures = {channel: [] for channel in CHANNELS}
         
@@ -380,21 +381,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.power_timer.setInterval(1000)
         
         self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
+
         df = pd.DataFrame(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
         df.to_csv(self.test_df, index=False)
+        self.power_is_on = False
+        self.last_power_toggle = datetime.datetime.now()
 
-        self.cycle_no.update_value(0)
+        # Initialization
+        self.cycle_no.update_value(self.start_cycle)
+        self.voltage_value.update_value(0)
+        self.current_value.update_value(0)
         self.update_plot()
+        
         if self.dummy_data:
             pass
         else:
-            # TODO: Connect to the power supply and start the test and see how it goes, also read temp at start
-            self.hardware.set_rigol_output('ON')
+            self.hardware.set_rigol_output('OFF')
             self.hardware.set_rigol_current(self.current_input)
             self.hardware.set_rigol_voltage(self.voltage_input)
+            self.update_power_cycle()
         
-        self.power_is_on = True
-        self.last_power_toggle = datetime.datetime.now()
         self.power_timer.start()
         self.timer.start()
         
@@ -434,6 +440,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Update the plot with new data
         """
+        start_time = time.time()
         # Append the new data to the existing CSV file
         row = {}
         row['Datetime'] = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -447,15 +454,24 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.time.append(0)
         
-        temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int) if not self.dummy_data else [randint(20, 40) for _ in self.channels_in_use2int]
+        temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int) if not self.dummy_data else [float(randint(20, 40)) for _ in self.channels_in_use2int]
+        
+        # if not self.dummy_data:
+        #   print('TEMP:', temperature_readings)
+        #   print('CH:', self.channels_in_use2int)
+        
         for i, channel in enumerate(self.channels_in_use):
             self.temperatures[channel].append(temperature_readings[i])
-            row[f'Temp of {self.channel_names_in_use[channel]}'] = self.temperatures[channel][-1]
+            row[self.channel_names_in_use[channel]] = self.temperatures[channel][-1]
         
         new_df = pd.DataFrame([row])
         new_df = new_df.reindex(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
         new_df.to_csv(self.test_df, mode='a', index=False, header=False)
         self.update_visible_channels()
+        end_time = time.time() - start_time
+        
+        # print(f'Update done in %s' % end_time)
+        self.timer.setInterval(self.sample_rate * 1000 - int(end_time * 1000))
     
     def update_visible_channels(self):
         """
@@ -476,13 +492,14 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Update the power cycle
         """
+        start_time = time.time()
         now = datetime.datetime.now()
         elapsed_time = (now - self.last_power_toggle).total_seconds()  # Calculate time difference
 
         if self.power_is_on and elapsed_time >= self.power_on:
             self.power_is_on = False
             self.last_power_toggle = now  # Update timestamp
-            # TODO: Change the power state of the power supply -- check if need to manually change the values
+            self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
             if not self.dummy_data:
                 self.hardware.set_rigol_output('OFF')
                 self.voltage_value.update_value(self.hardware.read_rigol_voltage())
@@ -491,12 +508,15 @@ class MainWindow(QtWidgets.QMainWindow):
         elif not self.power_is_on and elapsed_time >= self.power_off:
             self.power_is_on = True
             self.last_power_toggle = now  # Update timestamp
-            self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
-            # TODO: Change the power state of the power supply
             if not self.dummy_data:
                 self.hardware.set_rigol_output('ON')
                 self.voltage_value.update_value(self.hardware.read_rigol_voltage())
                 self.current_value.update_value(self.hardware.read_rigol_current())
+        
+        elif not self.power_is_on and int(self.cycle_no.value_label.text()) == 0:
+            self.cycle_no.update_value(self.start_cycle)
+            self.voltage_value.update_value(self.hardware.read_rigol_voltage())
+            self.current_value.update_value(self.hardware.read_rigol_current())
         
         elif not self.dummy_data:
             self.voltage_value.update_value(self.hardware.read_rigol_voltage())
@@ -504,6 +524,10 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if int(self.cycle_no.value_label.text()) >= self.end_cycle:
             self.complete_test()
+        
+        # if not self.dummy_data:
+        #   print('POWER:', self.hardware.read_rigol_voltage(), self.hardware.read_rigol_current())
+        #   print(f'POWER done in %s' % (time.time() - start_time))
         
     def get_visible_channels(self):
         """
@@ -626,8 +650,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.hardware.set_rigol_voltage(0)
         
         self.time = []
-        self.temperatures = {channel: [] for channel in CHANNELS}
-        
+        self.temperatures = {channel: [] for channel in CHANNELS} 
 
     def center_window(self):
         """
@@ -639,9 +662,19 @@ class MainWindow(QtWidgets.QMainWindow):
         frame_geometry.moveCenter(screen_center)
         self.move(frame_geometry.topLeft())
 
+
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dummy', '-d', action='store_true', help='Use dummy data')
+    return parser
+
+
 if __name__ == '__main__':
+    parser = get_parser()
+    args = parser.parse_args()
+
     app = QtWidgets.QApplication([])
-    main = MainWindow(dummy_data=True)
+    main = MainWindow(dummy_data=args.dummy)
     main.show()
     main.center_window()
     app.exec()
