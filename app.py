@@ -468,10 +468,10 @@ class MainWindow(QtWidgets.QMainWindow):
         new_df = new_df.reindex(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
         new_df.to_csv(self.test_df, mode='a', index=False, header=False)
         self.update_visible_channels()
-        end_time = time.time() - start_time
+        time_elapsed = time.time() - start_time
         
         # print(f'Update done in %s' % end_time)
-        self.timer.setInterval(self.sample_rate * 1000 - int(end_time * 1000))
+        self.timer.setInterval(self.sample_rate * 1000 - int(time_elapsed * 1000))  # readjust interval calls
     
     def update_visible_channels(self):
         """
@@ -510,6 +510,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.last_power_toggle = now  # Update timestamp
             if not self.dummy_data:
                 self.hardware.set_rigol_output('ON')
+                self.hardware.set_rigol_current(self.current_input)
+                self.hardware.set_rigol_voltage(self.voltage_input)
+                
                 self.voltage_value.update_value(self.hardware.read_rigol_voltage())
                 self.current_value.update_value(self.hardware.read_rigol_current())
         
