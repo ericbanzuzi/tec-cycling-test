@@ -1,5 +1,7 @@
+import argparse
 import datetime
 import shutil
+import time
 import os
 import matplotlib.colors as mcolors
 import pandas as pd
@@ -9,8 +11,6 @@ from pathlib import Path
 from random import randint
 import seaborn as sns
 from hardware import Hardware
-import time
-import argparse
 
 
 PALETTE = sns.color_palette()
@@ -18,6 +18,7 @@ COLORS = [mcolors.to_hex(color) for color in PALETTE]
 CHANNELS = [f"ch{i}" for i in range(1, 11)]
 PS_INFO_FIELDS = ['Current I (A)', 'Voltage (V)', 'Power On (sec)', 'Power Off (sec)', 'Sample Rate (sec)', 'Start Cycle', 'End Cycle']
 CSV_PATH = 'test-data'
+CYCLES_IN_GRAPH = 5
 
 
 class CheckableComboBox(QtWidgets.QComboBox):
@@ -306,6 +307,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.model.appendRow([channel_item, color_item])
 
         self.display_selector.setModel(self.model)
+        self.model.itemChanged.connect(self.handle_channel_toggle)
+
         # Set fixed column width
         self.display_selector.setColumnWidth(0, 80)
         self.display_selector.setColumnWidth(1, 60)
@@ -335,6 +338,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.setLabel("bottom", "Time (sec)", **styles)
         self.plot_graph.addLegend()
         self.plot_graph.showGrid(x=True, y=True)
+        self.plot_curves = {}
+        
         self.time = []
         self.temperatures = {channel: [] for channel in CHANNELS}
         
@@ -369,6 +374,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Hardware
         self.dummy_data = dummy_data
         self.hardware = Hardware() if not dummy_data else None
+        self.max_plot_points = 0
 
     def start_test(self):
         """
@@ -381,6 +387,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.power_timer.setInterval(1000)
         
         self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
+        self.max_plot_points = int((self.power_on + self.power_off)/self.sample_rate) * CYCLES_IN_GRAPH  # limit to displaying 5 cycles at the same time
+        self.init_used_channels()
 
         df = pd.DataFrame(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
         df.to_csv(self.test_df, index=False)
@@ -422,6 +430,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         self.timer.stop()
         self.power_timer.stop()
+        
         self.time = []
         self.temperatures = {channel: [] for channel in CHANNELS}
         
@@ -453,7 +462,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.time.append(self.time[-1] + self.sample_rate)
         else:
             self.time.append(0)
-        
+
+        # Limit size of time list
+        if len(self.time) > self.max_plot_points:
+            self.time = self.time[-self.max_plot_points:]
+
         temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int) if not self.dummy_data else [float(randint(20, 40)) for _ in self.channels_in_use2int]
         
         # if not self.dummy_data:
@@ -462,6 +475,9 @@ class MainWindow(QtWidgets.QMainWindow):
         
         for i, channel in enumerate(self.channels_in_use):
             self.temperatures[channel].append(temperature_readings[i])
+            if len(self.temperatures[channel]) > self.max_plot_points:
+                self.temperatures[channel] = self.temperatures[channel][-self.max_plot_points:]
+
             row[self.channel_names_in_use[channel]] = self.temperatures[channel][-1]
         
         new_df = pd.DataFrame([row])
@@ -478,32 +494,54 @@ class MainWindow(QtWidgets.QMainWindow):
         Updates the plot based on selected channels
         """
         selected_channels = self.get_visible_channels()
-
+        
+        for channel in self.channels_in_use:
+            if channel in selected_channels:
+                self.plot_curves[channel].setData(self.time, self.temperatures[channel])
+            else:
+                self.plot_curves[channel].setData([], [])
+        
+        # OLD approach 
         # Clear the plot
-        self.plot_graph.clear()
+        # self.plot_graph.clear()
 
         # Re-plot only selected channels
-        for channel in selected_channels:
+        # for channel in selected_channels:
+            # pen = self.pens[channel]
+            # temp_data = self.temperatures[channel]
+            # self.plot_graph.plot(self.time, temp_data, pen=pen)
+    
+    def init_used_channels(self):
+        """
+        Initializes the plot based on selected channels
+        """
+        self.plot_graph.clear()
+        # Re-plot only selected channels
+        for channel in self.channels_in_use:
             pen = self.pens[channel]
-            temp_data = self.temperatures[channel]
-            self.plot_graph.plot(self.time, temp_data, pen=pen)
+            curve = self.plot_graph.plot([], [], pen=pen)
+            self.plot_curves[channel] = curve
     
     def update_power_cycle(self):
         """
         Update the power cycle
         """
-        start_time = time.time()
+        # start_time = time.time()
         now = datetime.datetime.now()
         elapsed_time = (now - self.last_power_toggle).total_seconds()  # Calculate time difference
 
         if self.power_is_on and elapsed_time >= self.power_on:
             self.power_is_on = False
             self.last_power_toggle = now  # Update timestamp
-            self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
-            if not self.dummy_data:
-                self.hardware.set_rigol_output('OFF')
-                self.voltage_value.update_value(self.hardware.read_rigol_voltage())
-                self.current_value.update_value(self.hardware.read_rigol_current())
+
+            if int(self.cycle_no.value_label.text()) + 1 > self.end_cycle:
+                self.complete_test()
+            else:
+                self.cycle_no.update_value(int(self.cycle_no.value_label.text()) + 1)
+                if not self.dummy_data:
+                    self.hardware.set_rigol_output('OFF')
+                    self.voltage_value.update_value(self.hardware.read_rigol_voltage())
+                    self.current_value.update_value(self.hardware.read_rigol_current())
 
         elif not self.power_is_on and elapsed_time >= self.power_off:
             self.power_is_on = True
@@ -524,9 +562,6 @@ class MainWindow(QtWidgets.QMainWindow):
         elif not self.dummy_data:
             self.voltage_value.update_value(self.hardware.read_rigol_voltage())
             self.current_value.update_value(self.hardware.read_rigol_current())
-        
-        if int(self.cycle_no.value_label.text()) >= self.end_cycle:
-            self.complete_test()
         
         # if not self.dummy_data:
         #   print('POWER:', self.hardware.read_rigol_voltage(), self.hardware.read_rigol_current())
@@ -635,9 +670,17 @@ class MainWindow(QtWidgets.QMainWindow):
         Finish the test and save the data to a CSV file
         """
         self.update_plot()
-
         self.timer.stop()
         self.power_timer.stop()
+
+        self.time = []
+        self.temperatures = {channel: [] for channel in CHANNELS}
+
+        if not self.dummy_data:
+            self.hardware.set_rigol_output('OFF')
+            self.hardware.set_rigol_current(0)
+            self.hardware.set_rigol_voltage(0)
+
         self.status_label.setStyleSheet(f"""
             font-size: 26px;
             font-weight: bold;
@@ -645,15 +688,7 @@ class MainWindow(QtWidgets.QMainWindow):
             color: white;
             padding: 10px;
         """)
-        self.status_label.setText('TEST COMPLETE')
-
-        if not self.dummy_data:
-            self.hardware.set_rigol_output('OFF')
-            self.hardware.set_rigol_current(0)
-            self.hardware.set_rigol_voltage(0)
-        
-        self.time = []
-        self.temperatures = {channel: [] for channel in CHANNELS} 
+        self.status_label.setText('TEST COMPLETE') 
 
     def center_window(self):
         """
@@ -664,6 +699,23 @@ class MainWindow(QtWidgets.QMainWindow):
         screen_center = screen.availableGeometry().center()
         frame_geometry.moveCenter(screen_center)
         self.move(frame_geometry.topLeft())
+
+    def handle_channel_toggle(self, item):
+        """
+        Update the visibility of curves in the graph
+        """
+        if item.column() != 0:
+            return
+        
+        channel = item.text()
+
+        try:
+            if item.checkState() == QtCore.Qt.CheckState.Checked:
+                self.plot_curves[channel].setData(self.time, self.temperatures[channel])
+            else:
+                self.plot_curves[channel].setData([], [])
+        except KeyError:
+           print(f'Cannot display {channel}, it is not in use for the test') 
 
 
 def get_parser() -> argparse.ArgumentParser:
