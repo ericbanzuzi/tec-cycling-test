@@ -19,23 +19,41 @@ class Hardware:
         self.setup_keithley_dmm6500()
     
     def set_rigol_voltage(self, voltage):
+        """ 
+        Set the output voltage of Rigol DP811A
+        """
         self.rigol_dp811a.write(f'VOLT {voltage}')
     
     def set_rigol_current(self, current):
+        """ 
+        Set the output current of Rigol DP811A
+        """
         self.rigol_dp811a.write(f'CURR {current}')
     
     def set_rigol_output(self, state):
+        """ 
+        Set the output ON or OFF for Rigol DP811A
+        """
         self.rigol_dp811a.write(f'OUTP {state.upper()}')
     
     def read_rigol_voltage(self):
+        """
+        Measure voltage of Rigol DP811A
+        """
         self.rigol_dp811a.write('MEAS:VOLT?')
         return float(self.rigol_dp811a.read().strip('\n'))
     
     def read_rigol_current(self):
+        """
+        Measure current of Rigol DP811A
+        """
         self.rigol_dp811a.write('MEAS:CURR?')
         return float(self.rigol_dp811a.read().strip('\n'))
 
     def setup_rigol_dp811a(self):
+        """
+        Configure Rigol DP811A ready for testing
+        """
         self.rigol_dp811a.timeout = 10000
         self.rigol_dp811a.write('*RST')
         self.rigol_dp811a.write('SYST:REM')
@@ -44,6 +62,9 @@ class Hardware:
         self.rigol_dp811a.write('CURR 0')
     
     def setup_keithley_dmm6500(self):
+        """
+        Configure Keithley DMM6500 ready for testing
+        """
         self.keithley_dmm6500.timeout = 30000
         self.keithley_dmm6500.write('*RST')
         self.keithley_dmm6500.write('TRAC:MAKE "scanbuffer", 100')
@@ -55,6 +76,10 @@ class Hardware:
         self.keithley_dmm6500.write(f'ROUT:SCAN:CRE (@1:10)')  # ensure correct channels
     
     def read_keithley_dmm6500_temperatures(self, channels, resistance=False):
+        """
+        Measure temperatures with the multimeter for all 10 channels, 
+        and return the values for channels in use
+        """
         self.keithley_dmm6500.write('TRAC:CLE "scanbuffer"')  # clear buffer
         self.keithley_dmm6500.write('INIT')  # start scan
         self.keithley_dmm6500.write('*WAI')  # wait  for scan to end
@@ -66,9 +91,15 @@ class Hardware:
         return [float(self.res_to_temp(float(data[int(channel) - 1]))) for channel in channels]
     
     def res_to_temp(self, R):
+        """
+        Convert resistance to temperature
+        """
         return 1 / (1.113e-3 + 2.43e-4*np.log(R) + 8.87e-8*(np.log(R)**3)) - 273.15
     
     def close(self):
+        """
+        Close all connections to hardwares
+        """
         self.rigol_dp811a.write('OUTP OFF')
         self.keithley_dmm6500.close()
         self.rigol_dp811a.close()
@@ -76,6 +107,9 @@ class Hardware:
     
 
 def list_available_instruments():
+    """
+    Display all instruments available for the PC to connect to
+    """
     rm = pyvisa.ResourceManager()
     print('All addresses:', rm.list_resources())
     i = 0

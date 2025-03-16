@@ -518,9 +518,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_graph.clear()
         # Re-plot only selected channels
         for channel in self.channels_in_use:
-            pen = self.pens[channel]
-            curve = self.plot_graph.plot([], [], pen=pen)
-            self.plot_curves[channel] = curve
+            self.plot_curves[channel] = self.plot_graph.plot([], [], pen=self.pens[channel])
     
     def update_power_cycle(self):
         """
