@@ -19,6 +19,7 @@ CHANNELS = [f"ch{i}" for i in range(1, 11)]
 PS_INFO_FIELDS = ['Current I (A)', 'Voltage (V)', 'Power On (sec)', 'Power Off (sec)', 'Sample Rate (sec)', 'Start Cycle', 'End Cycle']
 CSV_PATH = 'test-data'
 CYCLES_IN_GRAPH = 5
+PS_READING_RATE = 500
 
 
 class CheckableComboBox(QtWidgets.QComboBox):
@@ -384,7 +385,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if not success:
             return
         self.timer.setInterval(self.sample_rate * 1000)
-        self.power_timer.setInterval(1000)
+        self.power_timer.setInterval(PS_READING_RATE)
+
+        self.time = []
+        self.temperatures = {channel: [] for channel in CHANNELS}
         
         self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
         self.max_plot_points = int((self.power_on + self.power_off)/self.sample_rate) * CYCLES_IN_GRAPH  # limit to displaying 5 cycles at the same time
@@ -430,9 +434,6 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         self.timer.stop()
         self.power_timer.stop()
-        
-        self.time = []
-        self.temperatures = {channel: [] for channel in CHANNELS}
         
         if not self.dummy_data:
             self.hardware.set_rigol_output('OFF')
@@ -671,9 +672,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer.stop()
         self.power_timer.stop()
 
-        self.time = []
-        self.temperatures = {channel: [] for channel in CHANNELS}
-
         if not self.dummy_data:
             self.hardware.set_rigol_output('OFF')
             self.hardware.set_rigol_current(0)
@@ -686,7 +684,10 @@ class MainWindow(QtWidgets.QMainWindow):
             color: white;
             padding: 10px;
         """)
-        self.status_label.setText('TEST COMPLETE') 
+        self.status_label.setText('TEST COMPLETE')
+
+        self.sidebar.set_enabled_state(True)
+        self.save_button.setEnabled(True) 
 
     def center_window(self):
         """
@@ -706,15 +707,24 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         
         channel = item.text()
-
         try:
             if item.checkState() == QtCore.Qt.CheckState.Checked:
                 self.plot_curves[channel].setData(self.time, self.temperatures[channel])
             else:
                 self.plot_curves[channel].setData([], [])
         except KeyError:
-           print(f'Cannot display {channel}, it is not in use for the test') 
+           if len(self.channels_in_use) > 0:
+               print(f'Cannot display {channel}, it is not in use for the test')
 
+    def closeEvent(self, event):
+        try:
+            print('App is closing...')
+            if not self.dummy_data:
+                self.hardware.close()
+            event.accept()
+        except Exception as e:
+            print(f'Error on closing: {e}')
+            event.ignore()
 
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
@@ -726,6 +736,7 @@ if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
 
+    print('Starting app...')
     app = QtWidgets.QApplication([])
     main = MainWindow(dummy_data=args.dummy)
     main.show()

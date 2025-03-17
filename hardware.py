@@ -52,7 +52,7 @@ class Hardware:
 
     def setup_rigol_dp811a(self):
         """
-        Configure Rigol DP811A ready for testing
+        Configure Rigol DP811A ready for testing - in CV mode
         """
         self.rigol_dp811a.timeout = 10000
         self.rigol_dp811a.write('*RST')
@@ -124,8 +124,24 @@ def list_available_instruments():
 
 
 if __name__=='__main__':
-    # list_available_instruments()
+    list_available_instruments()
+    print()
+
     hardware = Hardware()
+
+    mode = hardware.rigol_dp811a.query('OUTP:CVCC?')
+    print(mode)
+    hardware.set_rigol_current(3)
+    hardware.set_rigol_voltage(3)
+    hardware.set_rigol_output('ON')
+    
+    import time
+    time.sleep(3)
+    print(hardware.read_rigol_voltage())
+    print(hardware.read_rigol_current())
+    
+    time.sleep(1.5)
+    hardware.close()
     # hardware.keithley_dmm6500.write('*CLS')
     # print(hardware.keithley_dmm6500.read())
     """ import time
