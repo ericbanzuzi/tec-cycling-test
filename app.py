@@ -18,7 +18,7 @@ PALETTE = sns.color_palette()
 COLORS = [mcolors.to_hex(color) for color in PALETTE]
 CHANNELS = [f"ch{i}" for i in range(1, 11)]
 CSV_PATH = 'test-data'
-CYCLES_IN_GRAPH = 5
+MAX_PLOT_POINTS = 1200 
 PS_READING_RATE = 500
 
 
@@ -174,7 +174,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # Hardware
         self.dummy_data = dummy_data
         self.hardware = Hardware() if not dummy_data else None
-        self.max_plot_points = 0
 
     def start_test(self):
         """
@@ -190,7 +189,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.temperatures = {channel: [] for channel in CHANNELS}
         
         self.test_df = f'./{CSV_PATH}/TEC cycling test {datetime.datetime.now().strftime("%d-%m-%Y %H.%M.%S")}.csv'
-        self.max_plot_points = int((self.power_on + self.power_off)/self.sample_rate) * CYCLES_IN_GRAPH  # limit to displaying 5 cycles at the same time
         self.init_used_channels()
 
         df = pd.DataFrame(columns=['Datetime', 'Cycle No.', 'Operator', 'Current I (A)', 'Voltage (V)', *self.channel_names_in_use.values()])
@@ -231,6 +229,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Enable the sidebar when the test stops
         """
+        if not self.timer.isActive():
+            return
+        
         self.timer.stop()
         self.power_timer.stop()
         
@@ -264,8 +265,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.time.append(0)
 
         # Limit size of time list
-        if len(self.time) > self.max_plot_points:
-            self.time = self.time[-self.max_plot_points:]
+        if len(self.time) > MAX_PLOT_POINTS:
+            self.time = self.time[-MAX_PLOT_POINTS:]
 
         temperature_readings = self.hardware.read_keithley_dmm6500_temperatures(self.channels_in_use2int) if not self.dummy_data else [float(randint(20, 40)) for _ in self.channels_in_use2int]
         
@@ -275,8 +276,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         for i, channel in enumerate(self.channels_in_use):
             self.temperatures[channel].append(temperature_readings[i])
-            if len(self.temperatures[channel]) > self.max_plot_points:
-                self.temperatures[channel] = self.temperatures[channel][-self.max_plot_points:]
+            if len(self.temperatures[channel]) > MAX_PLOT_POINTS:
+                self.temperatures[channel] = self.temperatures[channel][-MAX_PLOT_POINTS:]
 
             row[self.channel_names_in_use[channel]] = self.temperatures[channel][-1]
         
@@ -286,7 +287,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_visible_channels()
         time_elapsed = time.time() - start_time
         
-        # print(f'Update done in %s' % end_time)
+        # print(f'Update done in %s' % time_elapsed)
         self.timer.setInterval(self.sample_rate * 1000 - int(time_elapsed * 1000))  # readjust interval calls
     
     def update_visible_channels(self):
